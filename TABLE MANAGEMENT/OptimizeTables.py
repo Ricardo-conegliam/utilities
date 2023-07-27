@@ -73,7 +73,3 @@ def reorgTables(catalog,schema):
 
 reorgTables(catalog,schema)
 
-
-# COMMAND ----------
-
-

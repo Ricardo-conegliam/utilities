@@ -4,9 +4,9 @@ from pyspark.sql.functions import col,lit,round
 
 # COMMAND ----------
 
-catalog = "hive_metastore"
-schema = "hotmart"
-catalogType = "LEGACY"
+catalog = "main"
+schema = "default"
+catalogType = "UC"
 
 # COMMAND ----------
 
