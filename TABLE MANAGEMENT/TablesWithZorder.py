@@ -11,14 +11,10 @@ dbutils.widgets.text("catalog","main")
 dbutils.widgets.text("schema","schema01")
 dbutils.widgets.dropdown("catalogType",defaultValue="UC",choices=["UC","LEGACY"]) 
 
-
-
 catalog = dbutils.widgets.get("catalog")
 schema = dbutils.widgets.get("schema")
 catalogType = dbutils.widgets.get("catalogType")
 
-# catalog = "main"
-# schema = "schema01"
 
 # COMMAND ----------
 
@@ -26,7 +22,6 @@ catalogType = dbutils.widgets.get("catalogType")
 from delta import DeltaTable
 from pyspark.sql.functions import col,lit
 from datetime import date, timedelta
-
 
 # COMMAND ----------
 

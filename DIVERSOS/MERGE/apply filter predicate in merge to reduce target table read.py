@@ -1,5 +1,6 @@
 # Databricks notebook source
-# MAGIC %md ### How to restrict date ranges when merging
+# MAGIC %md 
+# MAGIC ### How to restrict date ranges when merging
 
 # COMMAND ----------
 
@@ -26,11 +27,11 @@ table_data = [("record 1","2022-08-20",1000),
 df_streaming = spark.createDataFrame(data=streaming_data,schema=schema).select(["record", to_date("record_date").alias("record_date"), "value"])
 df_table = spark.createDataFrame(data=table_data,schema=schema).select(["record", to_date("record_date").alias("record_date"), "value"])
 
-df_table.write.format("delta").mode("overwrite").saveAsTable("rsuga.teste_merge_with_date_ranges")
+df_table.write.format("delta").mode("overwrite").saveAsTable("conegliam_uc.events.teste_merge_with_date_ranges")
 
 # COMMAND ----------
 
-# MAGIC %sql select * from rsuga.teste_merge_with_date_ranges
+# MAGIC %sql select * from conegliam_uc.events..teste_merge_with_date_ranges
 
 # COMMAND ----------
 
@@ -43,7 +44,7 @@ def updateRecordsWithDateRangePredicate(batch_df, batch_id):
     min_date, max_date = [row[i] for i in (0,1)]
     
     # now let's merge with the delta table using the range as a filter predicate
-    deltaTable = DeltaTable.forName(spark, "rsuga.teste_merge_with_date_ranges")
+    deltaTable = DeltaTable.forName(spark, "conegliam_uc.events.teste_merge_with_date_ranges")
 
     (deltaTable.alias("t")
          .merge(batch_df.alias("i"),
@@ -57,4 +58,4 @@ updateRecordsWithDateRangePredicate(df_streaming, 0)
 
 # COMMAND ----------
 
-# MAGIC %sql select * from rsuga.teste_merge_with_date_ranges
+# MAGIC %sql select * from conegliam_uc.events.teste_merge_with_date_ranges
