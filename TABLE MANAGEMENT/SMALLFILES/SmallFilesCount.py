@@ -23,18 +23,18 @@ from pyspark.sql.functions import col, lit, round, current_timestamp, coalesce
 
 # DBTITLE 1,Variables
 dbutils.widgets.text("Catalog","main")
-dbutils.widgets.text("Days_Since_Last_Alt","30")
-dbutils.widgets.text("AutoOptimize","N")
+dbutils.widgets.text("Days_Since_Last_Alt","9999")
+dbutils.widgets.text("AutoFix","N")
 
 
 catalog = dbutils.widgets.get("Catalog")
 days_since_last_alt = dbutils.widgets.get("Days_Since_Last_Alt")
-auto_optimize = dbutils.widgets.get("AutoOptimize")
+autoFix = dbutils.widgets.get("AutoFix")
 
 table_file_stats = "main.default.tablefilestats"
 table_file_stats_hist = "main.default.tablefilestats_hist"
 
-verbose = False
+verbose = True
 
 now = datetime.now() 
 
@@ -56,7 +56,8 @@ CREATE TABLE IF NOT EXISTS {table_file_stats} ( \
   numFiles BIGINT, \
   sizeMb DOUBLE, \
   avgFileSizeMb DOUBLE, \
-  timestamp TIMESTAMP \
+  timestamp TIMESTAMP, \
+  vacuum STRING \
 )")
 
 spark.sql(f" \
@@ -68,9 +69,10 @@ CREATE TABLE IF NOT EXISTS {table_file_stats_hist} ( \
   numFiles BIGINT, \
   sizeMb DOUBLE, \
   avgFileSizeMb DOUBLE, \
-  timestamp TIMESTAMP \
+  timestamp TIMESTAMP, \
+  vacuum STRING \
 )")
-# spark.sql(f"insert into {table_file_stats} ({table['table_catalog']},{table['table_schema']},{table['table_name']},)")
+
 
 # COMMAND ----------
 
@@ -82,7 +84,7 @@ def listSmallfiles(catalog):
 
     df = (
         spark.table("system.information_schema.tables")
-        .select("table_catalog", "table_schema", "table_name")
+        .select("table_catalog", "table_schema", "table_name","last_altered")
         .where(f'table_catalog = "{catalog}" ')
         .where("table_catalog <> 'information_schema'")
         .where("data_source_format = 'DELTA'")
@@ -94,7 +96,7 @@ def listSmallfiles(catalog):
     tableList = [
         data
         for data in df.select(
-            col("table_catalog"), col("table_schema"), col("table_name")
+            col("table_catalog"), col("table_schema"), col("table_name"), col("last_altered")
         ).collect()
     ]
 
@@ -128,9 +130,31 @@ def listSmallfiles(catalog):
             )
 
             if dfDetail.count() > 0:
+
+                v_last_altered = table['last_altered']
+
+                if verbose:
+                    print(f"        Cheking Vaccum {fullname}")
+               
+
+                dfVacuum = (spark
+                            .sql(f"desc history {fullname}")
+                            .where(f"timestamp > '{v_last_altered}' OR '{v_last_altered}' > now() - INTERVAL 7 DAYS")
+                            .where("operation = 'VACUUM END'")
+                            .where("operationParameters.status='COMPLETED'")
+                           )
+
+                vacuum = "N"
+
+                if dfVacuum.count() > 0:
+                    vacuum = "Y"
+        
+                dfDetail = dfDetail.withColumn("vacuum",lit(vacuum))
+
                 if verbose:
                     print(f"        Appending {fullname}")
                 list.append(dfDetail.collect()[0])
+
         except Exception as e:
             output = f"{e}"
             print(f"        Error on {fullname} {e}")
@@ -154,8 +178,9 @@ def writeDataframe(pcatalog,ptablesStats):
 
 
         spark.sql(f"DELETE FROM {table_file_stats} WHERE catalog = '{pcatalog}'")
-        spark.sql(f"DELETE FROM {table_file_stats_hist} WHERE batchId = '{batch_id}'")
-        
+        spark.sql(f"DELETE FROM {table_file_stats_hist} WHERE batchId = '{batch_id}' and catalog = '{pcatalog}'")
+
+
         df.write.mode("append").saveAsTable(table_file_stats)
         df.write.mode("append").saveAsTable(table_file_stats_hist)
     
@@ -187,17 +212,22 @@ else:
 spark.sql(f"optimize {table_file_stats}")
 spark.sql(f"optimize {table_file_stats_hist}")
 
+spark.sql(f"vacuum {table_file_stats}")
+spark.sql(f"vacuum {table_file_stats_hist}")
+
 # COMMAND ----------
 
 # DBTITLE 1,Optimizing all tables with numFiles > 1 and avgFileSize <50MB
-if auto_optimize == "Y":
+if autoFix == "Y":
     df = ( 
-          spark.sql(" \
+          spark.sql(f" \
                     select \
                             catalog,schema,table,numFiles \
                     from \
-                            main.default.tablefilestats \
+                            {table_file_stats} \
                     where   \
+                            (catalog = '{catalog}' OR '{catalog}' = '*') \
+                            and \
                             avgFileSizeMb < 50 \
                             and \
                             numFiles > 1 \
@@ -220,8 +250,41 @@ if auto_optimize == "Y":
 
         except Exception as e:  
             output = f"{e}"  
-            print(f"Error on optimizing {fullname} : {e}")
+            print(f"    Error on optimizing {fullname} : {e}")
     
+
+# COMMAND ----------
+
+# DBTITLE 1,Vacuuning tables with more than 7 days without it
+if autoFix == "Y":
+
+    
+    df = spark.sql(f" \
+                    select \
+                            catalog,schema,table \
+                    from \
+                            {table_file_stats} \
+                    where   \
+                            (catalog = '{catalog}' OR '{catalog}' = '*') \
+                            and \
+                            vacuum = 'N' \
+                  ")
+
+
+    tableList = [data for data in df.collect()]
+
+
+    for table in tableList:
+
+        fullname = f"{table['catalog']}.{table['schema']}.{table['table']}"
+
+        print(f"Running Vacuum on {fullname}...")
+        try:
+            spark.sql(f"VACUUM {fullname}")
+        except Exception as e:  
+            output = f"{e}"  
+            print(f"    Error on Vacuun {fullname} ")
+
 
 # COMMAND ----------
 

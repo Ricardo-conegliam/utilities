@@ -59,3 +59,7 @@ updateRecordsWithDateRangePredicate(df_streaming, 0)
 # COMMAND ----------
 
 # MAGIC %sql select * from conegliam_uc.events.teste_merge_with_date_ranges
+
+# COMMAND ----------
+
+
