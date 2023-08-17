@@ -1,15 +1,15 @@
 # Databricks notebook source
 # MAGIC %md
 # MAGIC ## Objective : Collect small file stats from given catalog (or all)
-# MAGIC ### To process all the catalogs, just use "*" as parameter
-# MAGIC ### You can run it daily to get the evolution
-# MAGIC ### You can create Queries and Alerts to monitor the smallfiles stats
-# MAGIC ### This scripts only Describe Details, so its not dangerous.  However, if you use AutoOptimize = Y, it will try to optimize all tables with
-# MAGIC ###    numFiles > 1 and avgFileSizeinMB > 50
-# MAGIC ### Do not run with AutoOptimize="Y" if you have process with updates and merges taking places
-# MAGIC ### Works only with Unit Catalog
-# MAGIC ###
-# MAGIC ### Author :  SSA Team, Ricardo Conegliam
+# MAGIC - To process all the catalogs, just use "*" as parameter
+# MAGIC - You can run it daily to get the health evolution
+# MAGIC - You can create Queries and Alerts to monitor the smallfiles stats
+# MAGIC - This scripts only Describe Details, so its not dangerous.  However, if you use AutoFixOptimize = Y, it will try to optimize all tables with numFiles > 1 and avgFileSizeinMB > 50
+# MAGIC - Do not run with AutoFixOptimize="Y" if you have process with updates and merges taking places
+# MAGIC - Vacuum verification takes a while (few seconds per table)!  Just set VerifyVacuum if you really need it
+# MAGIC - Works only with Unit Catalog
+# MAGIC - Auto fix only you be seen after next run of verification
+# MAGIC #### Author :  SSA Team, Ricardo Conegliam
 # MAGIC
 
 # COMMAND ----------
@@ -22,14 +22,19 @@ from pyspark.sql.functions import col, lit, round, current_timestamp, coalesce
 # COMMAND ----------
 
 # DBTITLE 1,Variables
+
 dbutils.widgets.text("Catalog","main")
 dbutils.widgets.text("Days_Since_Last_Alt","9999")
-dbutils.widgets.text("AutoFix","N")
+dbutils.widgets.text("AutoFixOptimize","N")
+dbutils.widgets.text("VerifyVacuum","N")
+dbutils.widgets.text("AutoFixVacuum","N")
 
 
 catalog = dbutils.widgets.get("Catalog")
 days_since_last_alt = dbutils.widgets.get("Days_Since_Last_Alt")
-autoFix = dbutils.widgets.get("AutoFix")
+AutoFixOptimize = dbutils.widgets.get("AutoFixOptimize")
+VerifyVacuum = dbutils.widgets.get("VerifyVacuum")
+AutoFixVacuum = dbutils.widgets.get("AutoFixVacuum")
 
 table_file_stats = "main.default.tablefilestats"
 table_file_stats_hist = "main.default.tablefilestats_hist"
@@ -110,6 +115,7 @@ def listSmallfiles(catalog):
 
         if verbose:  
             print(f"    Checking {fullname}...")
+            print(f"        Getting files info...")
 
         try:
 
@@ -131,29 +137,45 @@ def listSmallfiles(catalog):
 
             if dfDetail.count() > 0:
 
-                v_last_altered = table['last_altered']
-
-                if verbose:
-                    print(f"        Cheking Vaccum {fullname}")
+                vacuum = "N/A"
                
+                if VerifyVacuum == "Y":
 
-                dfVacuum = (spark
-                            .sql(f"desc history {fullname}")
-                            .where(f"timestamp > '{v_last_altered}' OR '{v_last_altered}' > now() - INTERVAL 7 DAYS")
-                            .where("operation = 'VACUUM END'")
-                            .where("operationParameters.status='COMPLETED'")
-                           )
+                    if verbose:
+                        print(f"        Cheking Vaccum...")
 
-                vacuum = "N"
+                    v_last_altered = table['last_altered']
 
-                if dfVacuum.count() > 0:
+                    dfVacuum = (spark
+                                .sql(f"desc history {fullname}")
+                                .where(f"timestamp > '{v_last_altered}' OR '{v_last_altered}' > now() - INTERVAL 7 DAYS")
+                                .where("operation = 'VACUUM END'")
+                                .where("operationParameters.status='COMPLETED'")
+                            )
+
                     vacuum = "Y"
-        
-                dfDetail = dfDetail.withColumn("vacuum",lit(vacuum))
 
-                if verbose:
-                    print(f"        Appending {fullname}")
-                list.append(dfDetail.collect()[0])
+                    if dfVacuum.count() == 0:
+
+                        if AutoFixVacuum == "Y":
+                        
+                            print(f"            Vacuuming...")
+
+                            try:
+                                spark.sql(f"VACUUM {fullname}")
+                            except Exception as e:  
+                                output = f"{e}"  
+                                print(f"                Error on Vacuun!")
+                                vacuum = "E"
+                        else:
+                            vacuum = "N"
+
+                        
+                    dfDetail = dfDetail.withColumn("vacuum",lit(vacuum))
+
+                    if verbose:
+                        print(f"        Appending metada...")
+                    list.append(dfDetail.collect()[0])
 
         except Exception as e:
             output = f"{e}"
@@ -217,8 +239,8 @@ spark.sql(f"vacuum {table_file_stats_hist}")
 
 # COMMAND ----------
 
-# DBTITLE 1,Optimizing all tables with numFiles > 1 and avgFileSize <50MB
-if autoFix == "Y":
+# DBTITLE 1,Optimizing tables with numFiles > 1 and avgFileSize <50MB
+if AutoFixOptimize == "Y":
     df = ( 
           spark.sql(f" \
                     select \
@@ -255,35 +277,35 @@ if autoFix == "Y":
 
 # COMMAND ----------
 
-# DBTITLE 1,Vacuuning tables with more than 7 days without it
-if autoFix == "Y":
+# DBTITLE 1,Vacuuming tables with more than 7 days without it
+# if AutoFixVacuum == "Y" and VerifyVacuum == "Y":
 
     
-    df = spark.sql(f" \
-                    select \
-                            catalog,schema,table \
-                    from \
-                            {table_file_stats} \
-                    where   \
-                            (catalog = '{catalog}' OR '{catalog}' = '*') \
-                            and \
-                            vacuum = 'N' \
-                  ")
+#     df = spark.sql(f" \
+#                     select \
+#                             catalog,schema,table \
+#                     from \
+#                             {table_file_stats} \
+#                     where   \
+#                             (catalog = '{catalog}' OR '{catalog}' = '*') \
+#                             and \
+#                             vacuum = 'N' \
+#                   ")
 
 
-    tableList = [data for data in df.collect()]
+#     tableList = [data for data in df.collect()]
 
 
-    for table in tableList:
+#     for table in tableList:
 
-        fullname = f"{table['catalog']}.{table['schema']}.{table['table']}"
+#         fullname = f"{table['catalog']}.{table['schema']}.{table['table']}"
 
-        print(f"Running Vacuum on {fullname}...")
-        try:
-            spark.sql(f"VACUUM {fullname}")
-        except Exception as e:  
-            output = f"{e}"  
-            print(f"    Error on Vacuun {fullname} ")
+#         print(f"Running Vacuum on {fullname}...")
+#         try:
+#             spark.sql(f"VACUUM {fullname}")
+#         except Exception as e:  
+#             output = f"{e}"  
+#             print(f"    Error on Vacuun {fullname} ")
 
 
 # COMMAND ----------
