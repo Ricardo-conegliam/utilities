@@ -254,7 +254,7 @@ def listSmallfiles(catalog):
 
                     except Exception as e:  
                         output = f"{e}"  
-                        print(f"        Error finding zorder {fullname} ")
+                        print(f"        Error analyzing zorder {fullname} ")
 
         
                 dfDetail = (
