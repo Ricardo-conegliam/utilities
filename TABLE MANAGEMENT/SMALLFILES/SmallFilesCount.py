@@ -110,7 +110,7 @@ schema = StructType(
 # COMMAND ----------
 
 # DBTITLE 1,Getting tables from catalog to process
-def getTableFromCatalog():
+def getTableFromCatalog(catalog):
     # reading tables from catalog 
     df = (
         spark.table("system.information_schema.tables")
@@ -167,7 +167,7 @@ def getTableInfo(ptable):
 def listSmallfiles(catalog):
 
 
-    tableList = getTableFromCatalog()
+    tableList = getTableFromCatalog(catalog)
 
     list = []
 
@@ -380,7 +380,3 @@ if AutoFixOptimize == "Y":
     optimizeTables()
 
 autoClean()
-
-# COMMAND ----------
-
-tablesStats
