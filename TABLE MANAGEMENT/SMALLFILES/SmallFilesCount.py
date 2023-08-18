@@ -188,6 +188,9 @@ def listSmallfiles(catalog):
 
                 if verbose: print(f"        Caching history information...")
                 dfHistory = spark.sql(f"desc history {fullname}").cache()
+                historyCount = dfHistory.count()
+
+                if verbose: print(f"        Versions found : {historyCount}")
 
 
             if dfDetail.count() > 0:  ## there is at least one information regarding the table by describe detail
