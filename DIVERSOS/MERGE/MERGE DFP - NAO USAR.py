@@ -193,12 +193,4 @@ df_stats.groupBy("SourceInfo.file_name").sum("SourceInfo.file_size").show()
 
 # COMMAND ----------
 
-x = spark.catalog.getTable("main.schema01.transactions_zorder")
-
-# COMMAND ----------
-
-x
-
-# COMMAND ----------
-
 
