@@ -63,6 +63,7 @@ CREATE TABLE IF NOT EXISTS {table_file_stats} ( \
   catalog STRING, \
   schema STRING, \
   table STRING, \
+  partitionColumns STRING, \
   numFiles BIGINT, \
   sizeMb DOUBLE, \
   avgFileSizeMb DOUBLE, \
@@ -79,6 +80,7 @@ spark.sql(f"\
   catalog STRING, \
   schema STRING, \
   table STRING, \
+  partitionColumns STRING, \
   numFiles BIGINT, \
   sizeMb DOUBLE, \
   avgFileSizeMb DOUBLE, \
@@ -96,6 +98,7 @@ schema = StructType(
         StructField("catalog", StringType(), True),
         StructField("schema", StringType(), True),
         StructField("table", StringType(), True),
+        StructField("partitionColumns", StringType(), True),
         StructField("numFiles", LongType(), True),
         StructField("sizeMb", DoubleType(), True),
         StructField("avgFileSizeMb", DoubleType(), True),
@@ -145,6 +148,7 @@ def getTableInfo(ptable):
         lit(ptable['table_catalog']).alias("catalog"),
         lit(ptable['table_schema']).alias("schema"),
         lit(ptable['table_name']).alias("table"),
+        "partitionColumns",
         "numFiles",
         round((col("sizeInBytes") / lit(1024) / lit(1024)), 3).alias(
             "sizeMB"
@@ -244,7 +248,7 @@ def listSmallfiles(catalog):
                                     dfHistory
                                     .select('operationParameters.zOrderBy','timestamp')
                                     # .filter("operation='OPTIMIZE' and timestamp > now() - interval 30 days and operationParameters.zOrderBy <> '[]'")
-                                    .filter("operation='OPTIMIZE' and timestamp > now() - interval 90 days")
+                                    .filter("operation='OPTIMIZE' and timestamp > now() - interval 30 days")
                                     .orderBy(col("timestamp").desc())
                                     .first()
                                 )
@@ -383,3 +387,7 @@ if AutoFixOptimize == "Y":
     optimizeTables()
 
 autoClean()
+
+# COMMAND ----------
+
+
