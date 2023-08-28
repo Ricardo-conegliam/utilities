@@ -248,7 +248,7 @@ def listSmallfiles(catalog):
                                     dfHistory
                                     .select('operationParameters.zOrderBy','timestamp')
                                     # .filter("operation='OPTIMIZE' and timestamp > now() - interval 30 days and operationParameters.zOrderBy <> '[]'")
-                                    .filter("operation='OPTIMIZE' and timestamp > now() - interval 30 days")
+                                    .filter("operation='OPTIMIZE'")
                                     .orderBy(col("timestamp").desc())
                                     .first()
                                 )
@@ -387,6 +387,15 @@ if AutoFixOptimize == "Y":
     optimizeTables()
 
 autoClean()
+
+# COMMAND ----------
+
+# # Parallelism when syncing the tables
+# default_parallelism = os.cpu_count()
+
+
+# with ThreadPoolExecutor(max_workers = default_parallelism) as executor:
+#     executor.map(create_uc_tables, managed_tables_list)
 
 # COMMAND ----------
 
