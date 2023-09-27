@@ -193,4 +193,27 @@ df_stats.groupBy("SourceInfo.file_name").sum("SourceInfo.file_size").show()
 
 # COMMAND ----------
 
+# MAGIC %sql
+# MAGIC
+# MAGIC create or replace table main.schema01.transactions_clustered cluster by (transaction_date) 
+# MAGIC TBLPROPERTIES (delta.autoOptimize.optimizeWrite = False, delta.targetFileSize = "10000") 
+# MAGIC as select * from main.schema01.transactions;
+# MAGIC
+# MAGIC -- ALTER TABLE main.schema01.transactions_clustered set TBLPROPERTIES (delta.autoOptimize.optimizeWrite = False, delta.targetFileSize = "1073741824") ;
+# MAGIC
+
+# COMMAND ----------
+
+# MAGIC %sql
+# MAGIC SHOW TBLPROPERTIES main.schema01.transactions_clustered
+
+# COMMAND ----------
+
+# MAGIC %sql
+# MAGIC -- set spark.databricks.delta.optimize.maxFileSize = 1073741824;
+# MAGIC optimize main.schema01.transactions_clustered;
+# MAGIC
+
+# COMMAND ----------
+
 

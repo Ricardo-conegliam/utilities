@@ -19,6 +19,8 @@ from delta import DeltaTable
 from datetime import datetime
 from pyspark.sql.functions import col, lit, round, current_timestamp, coalesce
 from pyspark.sql.types import StructType, StructField, StringType, TimestampType, DateType, ArrayType, BooleanType, DoubleType, LongType
+from datetime import date, timedelta
+
 
 
 # COMMAND ----------
@@ -47,6 +49,12 @@ table_file_stats_hist = "main.default.tablefilestats_hist"
 verbose = True
 
 now = datetime.now() 
+
+oneweekbehind = date.today() - timedelta(days=7)
+str_oneweekbehind = oneweekbehind.strftime("%Y-%m-%d") 
+
+
+
 
 # It must have only one stats daily
 # If you run twice, the script delete the data with same date (batchId) before insert new data
@@ -209,14 +217,14 @@ def listSmallfiles(catalog):
                     v_last_altered = table['last_altered']
 
                     dfVacuum = (dfHistory
-                                .where(f"timestamp > '{v_last_altered}' OR '{v_last_altered}' > now() - INTERVAL 7 DAYS")
+                                .where(f"timestamp < '{v_last_altered}' ")
                                 .where("operation = 'VACUUM END'")
                                 .where("operationParameters.status='COMPLETED'")
                                )
 
                     vacuum = "Y"
 
-                    if dfVacuum.count() == 0:
+                    if dfVacuum.count() == 0 or ( dfVacuum.count() > 0 and '{v_last_altered}' < str_oneweekbehind ) :
 
                         if autoFixVacuum == "Y":
                         

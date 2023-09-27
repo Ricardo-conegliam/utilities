@@ -6,10 +6,14 @@ from pyspark.sql.functions import col,lit,round
 
 catalog = dbutils.widgets.text("Catalog","main")
 
-## LEGACY MODE IS NOT WORKING, USE ONLY "UC" TYPE
-catalogType = "UC"
 table_file_stats = "main.default.TABLE_FILE_STATS"
 
+x = spark.conf.get('spark.databricks.unityCatalog.enabled')
+
+
+# COMMAND ----------
+
+x
 
 # COMMAND ----------
 
@@ -19,7 +23,7 @@ table_file_stats = "main.default.TABLE_FILE_STATS"
 def listSmallfiles(catalog, schema):
 
     ## Note : if you are sadly not using UC, use this dataframe definition instead ##
-    if catalogType == "LEGACY":
+    if spark.conf.get('spark.databricks.unityCatalog.enabled') == 'false' 
         df = spark.sql(f"show tables from {catalog}.{schema}").select(
             col("tableName").alias("table_name"),
             lit(schema).alias("table_schema"),
