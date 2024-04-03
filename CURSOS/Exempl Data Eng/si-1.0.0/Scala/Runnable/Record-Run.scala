@@ -37,8 +37,7 @@
 
 // COMMAND ----------
 
-// MAGIC %scala
-// MAGIC dbutils.widgets.text("ranBy", "notebook")
+dbutils.widgets.text("ranBy", "notebook")
 
 // COMMAND ----------
 
@@ -49,8 +48,7 @@
 
 // COMMAND ----------
 
-// MAGIC %scala
-// MAGIC val ranBy = dbutils.widgets.get("ranBy")
+val ranBy = dbutils.widgets.get("ranBy")
 
 // COMMAND ----------
 
@@ -65,22 +63,21 @@
 
 // COMMAND ----------
 
-// MAGIC %scala
-// MAGIC import org.apache.spark.sql.functions.{lit, unix_timestamp}
-// MAGIC import org.apache.spark.sql.types.TimestampType
-// MAGIC
-// MAGIC val tags = com.databricks.logging.AttributionContext.current.tags
-// MAGIC val username = tags.getOrElse(com.databricks.logging.BaseTagDefinitions.TAG_USER, java.util.UUID.randomUUID.toString.replace("-", ""))
-// MAGIC val path = "/users/"+username+"/runLog"
-// MAGIC
-// MAGIC spark
-// MAGIC   .range(1)
-// MAGIC   .select(unix_timestamp.alias("runtime").cast(TimestampType), lit(ranBy).alias("ranBy"))
-// MAGIC   .write
-// MAGIC   .mode("APPEND")
-// MAGIC   .parquet(path)
-// MAGIC
-// MAGIC display(spark.read.parquet(path))
+import org.apache.spark.sql.functions.{lit, unix_timestamp}
+import org.apache.spark.sql.types.TimestampType
+
+val tags = com.databricks.logging.AttributionContext.current.tags
+val username = tags.getOrElse(com.databricks.logging.BaseTagDefinitions.TAG_USER, java.util.UUID.randomUUID.toString.replace("-", ""))
+val path = "/users/"+username+"/runLog"
+
+spark
+  .range(1)
+  .select(unix_timestamp.alias("runtime").cast(TimestampType), lit(ranBy).alias("ranBy"))
+  .write
+  .mode("APPEND")
+  .parquet(path)
+
+display(spark.read.parquet(path))
 
 // COMMAND ----------
 
@@ -97,9 +94,7 @@
 
 // COMMAND ----------
 
-// MAGIC %scala
-// MAGIC dbutils.notebook.exit(path)
-// MAGIC
+dbutils.notebook.exit(path)
 
 // COMMAND ----------
 

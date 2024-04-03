@@ -485,69 +485,68 @@
 
 # COMMAND ----------
 
-# MAGIC %python
-# MAGIC
-# MAGIC #**********************************
-# MAGIC # VARIOUS UTILITY FUNCTIONS
-# MAGIC #**********************************
-# MAGIC
-# MAGIC def assertSparkVersion(expMajor, expMinor):
-# MAGIC   major = spark.conf.get("com.databricks.training.spark.major-version")
-# MAGIC   minor = spark.conf.get("com.databricks.training.spark.minor-version")
-# MAGIC
-# MAGIC   if (int(major) < expMajor) or (int(major) == expMajor and int(minor) < expMinor):
-# MAGIC     msg = "This notebook must run on Spark version {}.{} or better, found.".format(expMajor, expMinor, major, minor)
-# MAGIC     raise Exception(msg)
-# MAGIC     
-# MAGIC   return major+"."+minor
-# MAGIC
-# MAGIC def assertDbrVersion(expMajor, expMinor):
-# MAGIC   major = spark.conf.get("com.databricks.training.dbr.major-version")
-# MAGIC   minor = spark.conf.get("com.databricks.training.dbr.minor-version")
-# MAGIC
-# MAGIC   if (int(major) < expMajor) or (int(major) == expMajor and int(minor) < expMinor):
-# MAGIC     msg = "This notebook must run on Databricks Runtime (DBR) version {}.{} or better, found.".format(expMajor, expMinor, major, minor)
-# MAGIC     raise Exception(msg)
-# MAGIC     
-# MAGIC   return major+"."+minor
-# MAGIC
-# MAGIC def assertIsMlRuntime():
-# MAGIC   version = spark.conf.get("com.databricks.training.dbr.version")
-# MAGIC   if "-ml-" not in version:
-# MAGIC     raise Exception("This notebook must be ran on a Databricks ML Runtime, found {}.".format(version))
-# MAGIC
-# MAGIC     
-# MAGIC #**********************************
-# MAGIC # GET AZURE DATASOURCE
-# MAGIC #**********************************
-# MAGIC
-# MAGIC
-# MAGIC def getAzureDataSource(): 
-# MAGIC   datasource = spark.conf.get("com.databricks.training.azure.datasource").split("\t")
-# MAGIC   source = datasource[0]
-# MAGIC   sasEntity = datasource[1]
-# MAGIC   sasToken = datasource[2]
-# MAGIC   return (source, sasEntity, sasToken)
-# MAGIC
-# MAGIC     
-# MAGIC #**********************************
-# MAGIC # GET EXPERIMENT ID
-# MAGIC #**********************************
-# MAGIC
-# MAGIC def getExperimentId():
-# MAGIC   return spark.conf.get("com.databricks.training.experimentId")
-# MAGIC
-# MAGIC #**********************************
-# MAGIC # INIT VARIOUS VARIABLES
-# MAGIC #**********************************
-# MAGIC
-# MAGIC username = spark.conf.get("com.databricks.training.username", "unknown-username")
-# MAGIC userhome = spark.conf.get("com.databricks.training.userhome", "unknown-userhome")
-# MAGIC
-# MAGIC import sys
-# MAGIC pythonVersion = spark.conf.set("com.databricks.training.python-version", sys.version[0:sys.version.index(" ")])
-# MAGIC
-# MAGIC None # suppress output
+
+#**********************************
+# VARIOUS UTILITY FUNCTIONS
+#**********************************
+
+def assertSparkVersion(expMajor, expMinor):
+  major = spark.conf.get("com.databricks.training.spark.major-version")
+  minor = spark.conf.get("com.databricks.training.spark.minor-version")
+
+  if (int(major) < expMajor) or (int(major) == expMajor and int(minor) < expMinor):
+    msg = "This notebook must run on Spark version {}.{} or better, found.".format(expMajor, expMinor, major, minor)
+    raise Exception(msg)
+    
+  return major+"."+minor
+
+def assertDbrVersion(expMajor, expMinor):
+  major = spark.conf.get("com.databricks.training.dbr.major-version")
+  minor = spark.conf.get("com.databricks.training.dbr.minor-version")
+
+  if (int(major) < expMajor) or (int(major) == expMajor and int(minor) < expMinor):
+    msg = "This notebook must run on Databricks Runtime (DBR) version {}.{} or better, found.".format(expMajor, expMinor, major, minor)
+    raise Exception(msg)
+    
+  return major+"."+minor
+
+def assertIsMlRuntime():
+  version = spark.conf.get("com.databricks.training.dbr.version")
+  if "-ml-" not in version:
+    raise Exception("This notebook must be ran on a Databricks ML Runtime, found {}.".format(version))
+
+    
+#**********************************
+# GET AZURE DATASOURCE
+#**********************************
+
+
+def getAzureDataSource(): 
+  datasource = spark.conf.get("com.databricks.training.azure.datasource").split("\t")
+  source = datasource[0]
+  sasEntity = datasource[1]
+  sasToken = datasource[2]
+  return (source, sasEntity, sasToken)
+
+    
+#**********************************
+# GET EXPERIMENT ID
+#**********************************
+
+def getExperimentId():
+  return spark.conf.get("com.databricks.training.experimentId")
+
+#**********************************
+# INIT VARIOUS VARIABLES
+#**********************************
+
+username = spark.conf.get("com.databricks.training.username", "unknown-username")
+userhome = spark.conf.get("com.databricks.training.userhome", "unknown-userhome")
+
+import sys
+pythonVersion = spark.conf.set("com.databricks.training.python-version", sys.version[0:sys.version.index(" ")])
+
+None # suppress output
 
 # COMMAND ----------
 

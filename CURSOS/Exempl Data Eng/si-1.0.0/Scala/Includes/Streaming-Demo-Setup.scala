@@ -4,22 +4,20 @@
 
 // COMMAND ----------
 
-// MAGIC %scala
-// MAGIC
-// MAGIC dbutils.fs.rm(userhome + "/streaming-demo", true)
-// MAGIC
-// MAGIC spark.read
-// MAGIC   .json("/mnt/training/definitive-guide/data/activity-data-with-geo.json/")
-// MAGIC   .toJSON
-// MAGIC   .withColumnRenamed("value", "body")
-// MAGIC   .write
-// MAGIC   .mode("overwrite")
-// MAGIC   .format("delta")
-// MAGIC   .save(userhome + "/streaming-demo")
-// MAGIC
-// MAGIC val activityStreamDF = (spark.readStream
-// MAGIC   .format("delta")
-// MAGIC   .option("maxFilesPerTrigger", 1)
-// MAGIC   .load(userhome + "/streaming-demo")
-// MAGIC )
-// MAGIC
+
+dbutils.fs.rm(userhome + "/streaming-demo", true)
+
+spark.read
+  .json("/mnt/training/definitive-guide/data/activity-data-with-geo.json/")
+  .toJSON
+  .withColumnRenamed("value", "body")
+  .write
+  .mode("overwrite")
+  .format("delta")
+  .save(userhome + "/streaming-demo")
+
+val activityStreamDF = (spark.readStream
+  .format("delta")
+  .option("maxFilesPerTrigger", 1)
+  .load(userhome + "/streaming-demo")
+)

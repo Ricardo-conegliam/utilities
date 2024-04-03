@@ -73,13 +73,12 @@
 
 // COMMAND ----------
 
-// MAGIC %scala
-// MAGIC
-// MAGIC import org.apache.spark.eventhubs.{EventHubsConf, EventPosition}
-// MAGIC
-// MAGIC val connectionString = dbutils.secrets.get(scope="demo", key="ehConnectionString")
-// MAGIC
-// MAGIC val ehWriteConf = EventHubsConf(connectionString)
+
+import org.apache.spark.eventhubs.{EventHubsConf, EventPosition}
+
+val connectionString = dbutils.secrets.get(scope="demo", key="ehConnectionString")
+
+val ehWriteConf = EventHubsConf(connectionString)
 
 // COMMAND ----------
 
@@ -90,20 +89,19 @@
 
 // COMMAND ----------
 
-// MAGIC %scala
-// MAGIC import org.apache.spark.sql.streaming.Trigger.ProcessingTime
-// MAGIC
-// MAGIC val checkpointPath = userhome + "/event-hub/write-checkpoint"
-// MAGIC dbutils.fs.rm(checkpointPath,true)
-// MAGIC
-// MAGIC activityStreamDF
-// MAGIC   .writeStream
-// MAGIC   .format("eventhubs")
-// MAGIC   .outputMode("update")
-// MAGIC   .options(ehWriteConf.toMap)
-// MAGIC   .trigger(ProcessingTime("25 seconds"))
-// MAGIC   .option("checkpointLocation", checkpointPath)
-// MAGIC   .start()
+import org.apache.spark.sql.streaming.Trigger.ProcessingTime
+
+val checkpointPath = userhome + "/event-hub/write-checkpoint"
+dbutils.fs.rm(checkpointPath,true)
+
+activityStreamDF
+  .writeStream
+  .format("eventhubs")
+  .outputMode("update")
+  .options(ehWriteConf.toMap)
+  .trigger(ProcessingTime("25 seconds"))
+  .option("checkpointLocation", checkpointPath)
+  .start()
 
 // COMMAND ----------
 
@@ -115,11 +113,10 @@
 
 // COMMAND ----------
 
-// MAGIC %scala
-// MAGIC
-// MAGIC val eventHubsConf = EventHubsConf(connectionString)
-// MAGIC   .setStartingPosition(EventPosition.fromStartOfStream)
-// MAGIC   .setMaxEventsPerTrigger(10)
+
+val eventHubsConf = EventHubsConf(connectionString)
+  .setStartingPosition(EventPosition.fromStartOfStream)
+  .setMaxEventsPerTrigger(10)
 
 // COMMAND ----------
 
@@ -130,16 +127,15 @@
 
 // COMMAND ----------
 
-// MAGIC %scala
-// MAGIC
-// MAGIC spark.conf.set("spark.sql.shuffle.partitions", sc.defaultParallelism)
-// MAGIC
-// MAGIC val eventStreamDF = spark.readStream
-// MAGIC   .format("eventhubs")
-// MAGIC   .options(eventHubsConf.toMap)
-// MAGIC   .load()
-// MAGIC
-// MAGIC eventStreamDF.printSchema()
+
+spark.conf.set("spark.sql.shuffle.partitions", sc.defaultParallelism)
+
+val eventStreamDF = spark.readStream
+  .format("eventhubs")
+  .options(eventHubsConf.toMap)
+  .load()
+
+eventStreamDF.printSchema()
 
 // COMMAND ----------
 
@@ -151,8 +147,7 @@
 
 // COMMAND ----------
 
-// MAGIC %scala
-// MAGIC val bodyDF = eventStreamDF.select('body.cast("STRING"))
+val bodyDF = eventStreamDF.select('body.cast("STRING"))
 
 // COMMAND ----------
 
@@ -164,8 +159,7 @@
 
 // COMMAND ----------
 
-// MAGIC %scala
-// MAGIC display(bodyDF, streamName= "bodyDF")
+display(bodyDF, streamName= "bodyDF")
 
 // COMMAND ----------
 
@@ -176,8 +170,7 @@
 
 // COMMAND ----------
 
-// MAGIC %scala
-// MAGIC for (s <- spark.streams.active if s.name == "bodyDF") s.stop()
+for (s <- spark.streams.active if s.name == "bodyDF") s.stop()
 
 // COMMAND ----------
 
@@ -196,26 +189,25 @@
 
 // COMMAND ----------
 
-// MAGIC %scala
-// MAGIC import org.apache.spark.sql.types.{StructField, StructType, StringType, LongType, DoubleType}
-// MAGIC
-// MAGIC lazy val schema = StructType(List(
-// MAGIC   StructField("Arrival_Time", LongType),
-// MAGIC   StructField("Creation_Time", LongType),
-// MAGIC   StructField("Device", StringType),
-// MAGIC   StructField("Index", LongType),
-// MAGIC   StructField("Model", StringType),
-// MAGIC   StructField("User", StringType),
-// MAGIC   StructField("gt", StringType),
-// MAGIC   StructField("x", DoubleType),
-// MAGIC   StructField("y", DoubleType),
-// MAGIC   StructField("z", DoubleType),
-// MAGIC   StructField("geolocation", StructType(List(
-// MAGIC     StructField("PostalCode", StringType),
-// MAGIC     StructField("StateProvince", StringType),
-// MAGIC     StructField("city", StringType),
-// MAGIC     StructField("country", StringType)))),
-// MAGIC   StructField("id", StringType)))
+import org.apache.spark.sql.types.{StructField, StructType, StringType, LongType, DoubleType}
+
+lazy val schema = StructType(List(
+  StructField("Arrival_Time", LongType),
+  StructField("Creation_Time", LongType),
+  StructField("Device", StringType),
+  StructField("Index", LongType),
+  StructField("Model", StringType),
+  StructField("User", StringType),
+  StructField("gt", StringType),
+  StructField("x", DoubleType),
+  StructField("y", DoubleType),
+  StructField("z", DoubleType),
+  StructField("geolocation", StructType(List(
+    StructField("PostalCode", StringType),
+    StructField("StateProvince", StringType),
+    StructField("city", StringType),
+    StructField("country", StringType)))),
+  StructField("id", StringType)))
 
 // COMMAND ----------
 
@@ -229,14 +221,13 @@
 
 // COMMAND ----------
 
-// MAGIC %scala
-// MAGIC
-// MAGIC import org.apache.spark.sql.functions.from_json
-// MAGIC
-// MAGIC val parsedEventsDF = bodyDF.select(
-// MAGIC   from_json('body, schema).alias("json"))
-// MAGIC
-// MAGIC parsedEventsDF.printSchema()
+
+import org.apache.spark.sql.functions.from_json
+
+val parsedEventsDF = bodyDF.select(
+  from_json('body, schema).alias("json"))
+
+parsedEventsDF.printSchema()
 
 // COMMAND ----------
 
@@ -245,26 +236,25 @@
 
 // COMMAND ----------
 
-// MAGIC %scala
-// MAGIC
-// MAGIC import org.apache.spark.sql.functions.{from_unixtime, col}
-// MAGIC
-// MAGIC val flatSchemaDF = parsedEventsDF
-// MAGIC   .select(from_unixtime(col("json.Arrival_Time")/1000).alias("Arrival_Time").cast("timestamp"),
-// MAGIC           (col("json.Creation_Time")/1E9).alias("Creation_Time").cast("timestamp"),
-// MAGIC           col("json.Device").alias("Device"),
-// MAGIC           col("json.Index").alias("Index"),
-// MAGIC           col("json.Model").alias("Model"),
-// MAGIC           col("json.User").alias("User"),
-// MAGIC           col("json.gt").alias("gt"),
-// MAGIC           col("json.x").alias("x"),
-// MAGIC           col("json.y").alias("y"),
-// MAGIC           col("json.z").alias("z"),
-// MAGIC           col("json.id").alias("id"),
-// MAGIC           col("json.geolocation.country").alias("country"),
-// MAGIC           col("json.geolocation.city").alias("city"),
-// MAGIC           col("json.geolocation.PostalCode").alias("PostalCode"),
-// MAGIC           col("json.geolocation.StateProvince").alias("StateProvince"))
+
+import org.apache.spark.sql.functions.{from_unixtime, col}
+
+val flatSchemaDF = parsedEventsDF
+  .select(from_unixtime(col("json.Arrival_Time")/1000).alias("Arrival_Time").cast("timestamp"),
+          (col("json.Creation_Time")/1E9).alias("Creation_Time").cast("timestamp"),
+          col("json.Device").alias("Device"),
+          col("json.Index").alias("Index"),
+          col("json.Model").alias("Model"),
+          col("json.User").alias("User"),
+          col("json.gt").alias("gt"),
+          col("json.x").alias("x"),
+          col("json.y").alias("y"),
+          col("json.z").alias("z"),
+          col("json.id").alias("id"),
+          col("json.geolocation.country").alias("country"),
+          col("json.geolocation.city").alias("city"),
+          col("json.geolocation.PostalCode").alias("PostalCode"),
+          col("json.geolocation.StateProvince").alias("StateProvince"))
 
 // COMMAND ----------
 
@@ -273,8 +263,7 @@
 
 // COMMAND ----------
 
-// MAGIC %scala
-// MAGIC display(flatSchemaDF)
+display(flatSchemaDF)
 
 // COMMAND ----------
 
@@ -284,10 +273,8 @@
 
 // COMMAND ----------
 
-// MAGIC %scala
-// MAGIC for (s <- spark.streams.active)
-// MAGIC   s.stop
-// MAGIC
+for (s <- spark.streams.active)
+  s.stop
 
 // COMMAND ----------
 

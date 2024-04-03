@@ -22,9 +22,7 @@
 
 # COMMAND ----------
 
-# MAGIC %python
-# MAGIC username = spark.conf.get("com.databricks.training.username")
-# MAGIC userhome = spark.conf.get("com.databricks.training.userhome")
-# MAGIC
-# MAGIC None # suppress output
-# MAGIC
+username = spark.conf.get("com.databricks.training.username")
+userhome = spark.conf.get("com.databricks.training.userhome")
+
+None # suppress output

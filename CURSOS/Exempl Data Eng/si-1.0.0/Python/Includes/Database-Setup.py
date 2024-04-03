@@ -78,26 +78,25 @@
 
 # COMMAND ----------
 
-# MAGIC %python
-# MAGIC class ClassroomHelper(object):
-# MAGIC   scalaHelper=spark._jvm.__getattr__("com.databricks.training.ClassroomHelper$").__getattr__("MODULE$")
-# MAGIC   @classmethod
-# MAGIC   def test_connection(cls, url):
-# MAGIC     cls.scalaHelper.test_connection(url)
-# MAGIC   @classmethod
-# MAGIC   def sql_query(cls, spark, url, sql):
-# MAGIC     return spark.read.jdbc(url, "({}) query".format(sql))
-# MAGIC   @classmethod
-# MAGIC   def sql_update(cls, url, sql, *args):
-# MAGIC     cls.scalaHelper.sql_update(url, sql, args)
-# MAGIC   @classmethod
-# MAGIC   def sql(cls, url, sql):
-# MAGIC     cls.scalaHelper.sql(url, sql)
-# MAGIC
-# MAGIC blobStoreBaseURL = "wasbs://training-container-clean@spearfishtrainingstorage.blob.core.windows.net/"
-# MAGIC username = spark.conf.get("com.databricks.training.username")
-# MAGIC userhome = spark.conf.get("com.databricks.training.userhome")
-# MAGIC None #Suppress output
+class ClassroomHelper(object):
+  scalaHelper=spark._jvm.__getattr__("com.databricks.training.ClassroomHelper$").__getattr__("MODULE$")
+  @classmethod
+  def test_connection(cls, url):
+    cls.scalaHelper.test_connection(url)
+  @classmethod
+  def sql_query(cls, spark, url, sql):
+    return spark.read.jdbc(url, "({}) query".format(sql))
+  @classmethod
+  def sql_update(cls, url, sql, *args):
+    cls.scalaHelper.sql_update(url, sql, args)
+  @classmethod
+  def sql(cls, url, sql):
+    cls.scalaHelper.sql(url, sql)
+
+blobStoreBaseURL = "wasbs://training-container-clean@spearfishtrainingstorage.blob.core.windows.net/"
+username = spark.conf.get("com.databricks.training.username")
+userhome = spark.conf.get("com.databricks.training.userhome")
+None #Suppress output
 
 # COMMAND ----------
 

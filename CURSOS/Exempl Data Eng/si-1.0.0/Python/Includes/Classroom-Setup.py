@@ -31,6 +31,4 @@
 
 # COMMAND ----------
 
-# MAGIC %python
-# MAGIC displayHTML("All done!")
-# MAGIC
+displayHTML("All done!")

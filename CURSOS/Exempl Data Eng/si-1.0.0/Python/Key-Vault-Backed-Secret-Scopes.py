@@ -51,8 +51,7 @@
 
 # COMMAND ----------
 
-# MAGIC %python
-# MAGIC dbutils.secrets.listScopes()
+dbutils.secrets.listScopes()
 
 # COMMAND ----------
 
@@ -65,8 +64,7 @@
 
 # COMMAND ----------
 
-# MAGIC %python
-# MAGIC dbutils.secrets.list("demo")
+dbutils.secrets.list("demo")
 
 # COMMAND ----------
 
@@ -80,8 +78,7 @@
 
 # COMMAND ----------
 
-# MAGIC %python
-# MAGIC print(dbutils.secrets.get(scope="demo", key="storageread"))
+print(dbutils.secrets.get(scope="demo", key="storageread"))
 
 # COMMAND ----------
 
