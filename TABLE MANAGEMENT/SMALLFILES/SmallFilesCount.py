@@ -11,6 +11,8 @@
 # MAGIC - Auto fix only you be seen after next run of verification
 # MAGIC #### Author :  SSA Team, Ricardo Conegliam
 # MAGIC
+# MAGIC
+# MAGIC
 
 # COMMAND ----------
 
@@ -20,6 +22,7 @@ from datetime import datetime
 from pyspark.sql.functions import col, lit, round, current_timestamp, coalesce
 from pyspark.sql.types import StructType, StructField, StringType, TimestampType, DateType, ArrayType, BooleanType, DoubleType, LongType
 from datetime import date, timedelta
+import concurrent.futures
 
 
 
@@ -121,7 +124,7 @@ schema = StructType(
 # COMMAND ----------
 
 # DBTITLE 1,Getting tables from catalog to process
-def getTableFromCatalog(catalog):
+def getTableListFromCatalog(catalog):
     # reading tables from catalog 
     df = (
         spark.table("system.information_schema.tables")
@@ -149,6 +152,10 @@ def getTableInfo(ptable):
     if verbose:  
         print(f"        Getting files info... {ptable['table_catalog']}.{ptable['table_schema']}.{ptable['table_name']}")
 
+    # TODO
+    #try: 
+    #except   
+
     dfReturn = ( 
         spark.sql(f"describe detail {ptable['table_catalog']}.{ptable['table_schema']}.{ptable['table_name']}")
         .select(
@@ -156,6 +163,7 @@ def getTableInfo(ptable):
         lit(ptable['table_catalog']).alias("catalog"),
         lit(ptable['table_schema']).alias("schema"),
         lit(ptable['table_name']).alias("table"),
+        "lastModified",
         "partitionColumns",
         "numFiles",
         round((col("sizeInBytes") / lit(1024) / lit(1024)), 3).alias(
@@ -176,10 +184,10 @@ def getTableInfo(ptable):
 # Note:  Be aware you are not zordering anything!
 
 
-def listSmallfiles(catalog):
+def processCatalog(catalog):
 
 
-    tableList = getTableFromCatalog(catalog)
+    tableList = getTableListFromCatalog(catalog)
 
     list = []
 
@@ -214,7 +222,8 @@ def listSmallfiles(catalog):
 
                     if verbose: print(f"        Cheking Vaccum...")
 
-                    v_last_altered = table['last_altered']
+                    # v_last_altered = table['last_altered']
+                    v_last_altered = dfDetail.select("lastModified").collect()[0][0].strftime("%Y-%m-%d")
 
                     dfVacuum = (dfHistory
                                 .where(f"timestamp < '{v_last_altered}' ")
@@ -222,7 +231,7 @@ def listSmallfiles(catalog):
                                 .where("operationParameters.status='COMPLETED'")
                                )
 
-                    vacuum = "Y"
+                    vacuum = "N"
 
                     if dfVacuum.count() == 0 or ( dfVacuum.count() > 0 and '{v_last_altered}' < str_oneweekbehind ) :
 
@@ -232,12 +241,13 @@ def listSmallfiles(catalog):
 
                             try:
                                 spark.sql(f"VACUUM {fullname}")
+                                vacuum = "Y"
+
                             except Exception as e:  
                                 output = f"{e}"  
                                 if verbose: print(f"                Error on Vacuun!")
                                 vacuum = "E"
-                        else:
-                            vacuum = "N"
+
                 
                 
                 ##  Cheking if last optimize was with zorder
@@ -384,11 +394,11 @@ if catalog == "*":  ## all catalogs will be processed
     for catalog_to_analyze in catalogs:
         if verbose:
             print(f"Analyzing catalog {catalog_to_analyze['catalog_name']}")
-        tablesStats = listSmallfiles(catalog_to_analyze['catalog_name'])
+        tablesStats = processCatalog(catalog_to_analyze['catalog_name'])
         writeDataframe(catalog_to_analyze['catalog_name'],tablesStats)
 
 else:
-    tablesStats = listSmallfiles(catalog)
+    tablesStats = processCatalog(catalog)
     writeDataframe(catalog,tablesStats)
 
 if AutoFixOptimize == "Y":
@@ -403,7 +413,7 @@ autoClean()
 
 
 # with ThreadPoolExecutor(max_workers = default_parallelism) as executor:
-#     executor.map(create_uc_tables, managed_tables_list)
+#     executor.map(create_uc_tables, edsx)
 
 # COMMAND ----------
 
