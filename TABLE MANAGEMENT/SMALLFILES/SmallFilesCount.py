@@ -19,7 +19,7 @@
 # DBTITLE 1,Imports
 from delta import DeltaTable
 from datetime import datetime
-from pyspark.sql.functions import col, lit, round, current_timestamp, coalesce
+from pyspark.sql.functions import col, lit, round, current_timestamp, coalesce, try_divide, concat_ws
 from pyspark.sql.types import StructType, StructField, StringType, TimestampType, DateType, ArrayType, BooleanType, DoubleType, LongType
 from datetime import date, timedelta
 import concurrent.futures
@@ -46,7 +46,7 @@ autoFixVacuum = dbutils.widgets.get("autoFixVacuum")
 checkZorder = dbutils.widgets.get("checkZorder")
 
 
-table_file_stats = "main.default.tablefilestats"
+# table_file_stats = "main.default.tablefilestats"
 table_file_stats_hist = "main.default.tablefilestats_hist"
 
 verbose = True
@@ -63,27 +63,30 @@ str_oneweekbehind = oneweekbehind.strftime("%Y-%m-%d")
 # If you run twice, the script delete the data with same date (batchId) before insert new data
 batch_id = now.strftime("%Y%m%d")
 
+main_list = []
+
 
 
 # COMMAND ----------
 
 # DBTITLE 1,Creating the tables if they don't exist
-spark.sql(f"\
-CREATE TABLE IF NOT EXISTS {table_file_stats} ( \
-  batchId STRING,\
-  catalog STRING, \
-  schema STRING, \
-  table STRING, \
-  partitionColumns STRING, \
-  numFiles BIGINT, \
-  sizeMb DOUBLE, \
-  avgFileSizeMb DOUBLE, \
-  timestamp TIMESTAMP, \
-  vacuum STRING , \
-  zorder STRING , \
-  zorderby STRING , \
-  last_optimize timestamp\
-)")
+# spark.sql(f"\
+# CREATE TABLE IF NOT EXISTS {table_file_stats} ( \
+#   batchId STRING,\
+#   catalog STRING, \
+#   schema STRING, \
+#   table STRING, \
+#   partitionColumns STRING, \
+#   numFiles BIGINT, \
+#   sizeMb DOUBLE, \
+#   avgFileSizeMb DOUBLE, \
+#   timestamp TIMESTAMP, \
+#   vacuum STRING , \
+#   zorder STRING , \
+#   zorderby STRING , \
+#   last_optimize timestamp, \
+#   lastModified timestamp \
+# )")
 
 spark.sql(f"\
   CREATE TABLE IF NOT EXISTS {table_file_stats_hist} ( \
@@ -99,7 +102,8 @@ spark.sql(f"\
   vacuum STRING, \
   zorder STRING , \
   zorderby STRING, \
-  last_optimize timestamp\
+  last_optimize timestamp,\
+  lastModified timestamp \
 )")
 
 
@@ -116,9 +120,20 @@ schema = StructType(
         StructField("vacuum", StringType(), True),
         StructField("zorder", StringType(), True),
         StructField("zorderby", StringType(), True),
-        StructField("last_optimize", TimestampType(), True)
+        StructField("last_optimize", TimestampType(), True),
+        StructField("lastModified", TimestampType(), True)
     ]
 )
+
+
+# COMMAND ----------
+
+# if verbose:
+#     print(f"    Deleting old information for {catalog}")
+
+# spark.sql(f"DELETE FROM {table_file_stats} WHERE catalog = '{catalog}'")
+# spark.sql(f"DELETE FROM {table_file_stats_hist} WHERE batchId = '{batch_id}' and catalog = '{catalog}'")
+
 
 
 # COMMAND ----------
@@ -126,6 +141,10 @@ schema = StructType(
 # DBTITLE 1,Getting tables from catalog to process
 def getTableListFromCatalog(catalog):
     # reading tables from catalog 
+
+    if verbose:  
+        print(f"Reading catalog {catalog}")
+              
     df = (
         spark.table("system.information_schema.tables")
         .select("table_catalog", "table_schema", "table_name","last_altered")
@@ -137,20 +156,20 @@ def getTableListFromCatalog(catalog):
         .orderBy("table_schema")
     )
 
-    list = [
+    return_list = [
         data
         for data in df.select(
             col("table_catalog"), col("table_schema"), col("table_name"), col("last_altered")
         ).collect()
     ]
-    return list
+    return return_list
 
 # COMMAND ----------
 
 def getTableInfo(ptable):
 
     if verbose:  
-        print(f"        Getting files info... {ptable['table_catalog']}.{ptable['table_schema']}.{ptable['table_name']}")
+        print(f"{ptable['table_catalog']}.{ptable['table_schema']}.{ptable['table_name']} - Getting files info...")
 
     # TODO
     #try: 
@@ -166,10 +185,10 @@ def getTableInfo(ptable):
         "lastModified",
         "partitionColumns",
         "numFiles",
-        round((col("sizeInBytes") / lit(1024) / lit(1024)), 3).alias(
+        round(try_divide(try_divide(col("sizeInBytes") , lit(1024)) , lit(1024)), 3).alias(
             "sizeMB"
         ),
-        round((col("sizeMB") / col("numFiles")), 3).alias(
+        round(try_divide(col("sizeMB") , col("numFiles")), 3).alias(
             "avgFileSizeMB"
         ))
         .where("numFiles > 0")
@@ -180,8 +199,175 @@ def getTableInfo(ptable):
 
 # COMMAND ----------
 
+def processTable(table):
+
+    fullname = f"{table['table_catalog']}.{table['table_schema']}.{table['table_name']}"
+
+    if verbose:  
+        print(f"{fullname}")
+
+    try:
+
+        dfDetail = getTableInfo (table)
+
+        if verifyVacuum == "Y" or checkZorder == "Y" :
+
+            if verbose: print(f"{fullname} - Getting history information...")
+            dfHistory = spark.sql(f"desc history {fullname}")   # .cache(). incompatible with serverless
+            historyCount = dfHistory.count()
+
+            if verbose: print(f"{fullname} - Versions found : {historyCount}")
+
+
+        if dfDetail.count() > 0:  ## there is at least one information regarding the table by describe detail
+            
+            ##  Cheking if last optimize was with zorder
+            vacuum = "N/A"
+            
+            if verifyVacuum == "Y":
+
+                if verbose: print(f"{fullname} - Cheking Vaccum...")
+
+                # v_last_altered = table['last_altered']
+                v_last_altered = dfDetail.select("lastModified").collect()[0][0].strftime("%Y-%m-%d")
+
+                dfVacuum = (dfHistory
+                            .where(f"timestamp < '{v_last_altered}' ")
+                            .where("operation = 'VACUUM END'")
+                            .where("operationParameters.status='COMPLETED'")
+                            )
+
+                vacuum = "N"
+
+                if dfVacuum.count() == 0 or ( dfVacuum.count() > 0 and '{v_last_altered}' < str_oneweekbehind ) :
+
+                    if autoFixVacuum == "Y":
+                    
+                        if verbose: print(f"{fullname} - Vacuuming...")
+
+                        try:
+                            spark.sql(f"VACUUM {fullname}")
+                            vacuum = "Y"
+
+                        except Exception as e:  
+                            output = f"{e}"  
+                            if verbose: print(f"{fullname} - Error on Vacuun!")
+                            vacuum = "E"
+
+            
+            
+            ##  Cheking if last optimize was with zorder
+            ##  It gets zorder information since the last optimize was done using zorder by
+            ##  Only filter last 90 days
+            zorder = "N"
+            zorderby =  ""
+            lastOptimize = None
+
+            if checkZorder == "Y":
+
+                if verbose: print(f"{fullname} - Cheking zorder historic...")
+
+                try:
+                    zorderby,lastOptimize =(   
+                                dfHistory
+                                .select('operationParameters.zOrderBy','timestamp')
+                                # .filter("operation='OPTIMIZE' and timestamp > now() - interval 30 days and operationParameters.zOrderBy <> '[]'")
+                                .filter("operation='OPTIMIZE'")
+                                .orderBy(col("timestamp").desc())
+                                .first()
+                            )
+                    
+                    zorderby = zorderby.replace("[","")
+                    zorderby = zorderby.replace("]","")
+                    zorderby = zorderby.replace('"','')
+
+                    if zorderby != "": zorder="Y"
+
+                except Exception as e:  
+                    output = f"{e}"  
+                    print(f"{fullname} - Error analyzing zorder {fullname} ")
+
+    
+            dfDetail = (
+                        dfDetail
+                        .withColumn("vacuum",lit(vacuum))
+                        .withColumn("zorder",lit(zorder))
+                        .withColumn("zorderby",lit(zorderby))
+                        .withColumn("last_optimize",lit(lastOptimize))
+                        )
+
+            if verbose: 
+                print(f"{fullname} - Writing metadata...")
+
+            # " ".join(str(x) for x in xs)
+
+            dfDetail_write = (
+                dfDetail
+                .withColumn( "partitionColumns", concat_ws(",",col("partitionColumns")) )
+                .withColumn( "timestamp" , current_timestamp())
+            )
+
+            if AutoFixOptimize == "Y":
+                optimize_table(fullname,zorderby)
+            
+            if autoFixVacuum == "Y":
+                vacuum_table(fullname)
+            
+            # dfDetail_write.show()
+
+            dfDetail_write.write.mode("append").option("mergeSchema",True).format("delta").saveAsTable(table_file_stats_hist) 
+
+            # # spark.sql(f"INSERT INTO {table_file_stats} ()")
+
+            # main_list
+            main_list.append(dfDetail.collect()[0])
+
+        # removed since it is not working with serverless
+        # if verifyVacuum == "Y" or checkZorder == "Y" :
+        #     dfHistory.unpersist()
+
+    except Exception as e:
+        output = f"{e}"
+        print(f"{fullname} - Error on {fullname} {e}")
+
+    return list
+
+# COMMAND ----------
+
+def optimize_table ( fullname,zorderby):
+
+    try:
+
+        print(f"Running Optimize on {fullname} {zorderby}...")
+
+        spark.sql(f"OPTIMIZE {fullname} {zorderby}")
+
+    except Exception as e:  
+        output = f"{e}"  
+        print(f"    Error on optimizing {fullname} : {e}")
+
+# COMMAND ----------
+
+def vacuum_table ( fullname):
+
+    try:
+
+        print(f"Running Vacuum on {fullname} ...")
+
+        spark.sql(f"VACUUM {fullname}")
+
+    except Exception as e:  
+        output = f"{e}"  
+        print(f"    Error vacuuming {fullname} : {e}")
+
+# COMMAND ----------
+
 # DBTITLE 1,Main function, where the files, vacuum and zorder are checked
 # Note:  Be aware you are not zordering anything!
+# # Parallelism when syncing the tables
+import concurrent.futures, os
+default_parallelism = os.cpu_count()
+
 
 
 def processCatalog(catalog):
@@ -191,158 +377,54 @@ def processCatalog(catalog):
 
     list = []
 
-    for table in tableList:
+    # for table in tableList:
+    #     processTable(table)
 
-        fullname = (
-            f"{table['table_catalog']}.{table['table_schema']}.{table['table_name']}"
-        )
+    with concurrent.futures.ThreadPoolExecutor(max_workers = default_parallelism) as executor:
+        executor.map(processTable, tableList)
 
-        if verbose:  
-            print(f"    Checking {fullname}")
-
-        try:
-
-            dfDetail = getTableInfo (table)
-
-            if verifyVacuum == "Y" or checkZorder == "Y" :
-
-                if verbose: print(f"        Caching history information...")
-                dfHistory = spark.sql(f"desc history {fullname}").cache()
-                historyCount = dfHistory.count()
-
-                if verbose: print(f"        Versions found : {historyCount}")
-
-
-            if dfDetail.count() > 0:  ## there is at least one information regarding the table by describe detail
-                
-                ##  Cheking if last optimize was with zorder
-                vacuum = "N/A"
-               
-                if verifyVacuum == "Y":
-
-                    if verbose: print(f"        Cheking Vaccum...")
-
-                    # v_last_altered = table['last_altered']
-                    v_last_altered = dfDetail.select("lastModified").collect()[0][0].strftime("%Y-%m-%d")
-
-                    dfVacuum = (dfHistory
-                                .where(f"timestamp < '{v_last_altered}' ")
-                                .where("operation = 'VACUUM END'")
-                                .where("operationParameters.status='COMPLETED'")
-                               )
-
-                    vacuum = "N"
-
-                    if dfVacuum.count() == 0 or ( dfVacuum.count() > 0 and '{v_last_altered}' < str_oneweekbehind ) :
-
-                        if autoFixVacuum == "Y":
-                        
-                            if verbose: print(f"            Vacuuming...")
-
-                            try:
-                                spark.sql(f"VACUUM {fullname}")
-                                vacuum = "Y"
-
-                            except Exception as e:  
-                                output = f"{e}"  
-                                if verbose: print(f"                Error on Vacuun!")
-                                vacuum = "E"
-
-                
-                
-                ##  Cheking if last optimize was with zorder
-                ##  It gets zorder information since the last optimize was done using zorder by
-                ##  Only filter last 90 days
-                zorder = "N"
-                zorderby =  ""
-                lastOptimize = None
-
-                if checkZorder == "Y":
-
-                    if verbose: print(f"        Cheking zorder historic...")
-
-                    try:
-                        zorderby,lastOptimize =(   
-                                    dfHistory
-                                    .select('operationParameters.zOrderBy','timestamp')
-                                    # .filter("operation='OPTIMIZE' and timestamp > now() - interval 30 days and operationParameters.zOrderBy <> '[]'")
-                                    .filter("operation='OPTIMIZE'")
-                                    .orderBy(col("timestamp").desc())
-                                    .first()
-                                )
-                        
-                        zorderby = zorderby.replace("[","")
-                        zorderby = zorderby.replace("]","")
-                        zorderby = zorderby.replace('"','')
-
-                        if zorderby != "": zorder="Y"
-
-                    except Exception as e:  
-                        output = f"{e}"  
-                        print(f"        Error analyzing zorder {fullname} ")
-
-        
-                dfDetail = (
-                            dfDetail
-                            .withColumn("vacuum",lit(vacuum))
-                            .withColumn("zorder",lit(zorder))
-                            .withColumn("zorderby",lit(zorderby))
-                            .withColumn("last_optimize",lit(lastOptimize))
-                            )
-
-                if verbose: 
-                    print("        Appending metada...")
-                list.append(dfDetail.collect()[0])
-
-            if verifyVacuum == "Y" or checkZorder == "Y" :
-                dfHistory.unpersist()
-
-        except Exception as e:
-            output = f"{e}"
-            print(f"        Error on {fullname} {e}")
-
-    return list
+ 
 
 # COMMAND ----------
 
 # DBTITLE 1,Optimizing function (for tables with numFiles > 1 and avgFileSize <50MB)
-def optimizeTables():
-    df = ( 
-          spark.sql(f" \
-                    select \
-                            catalog,schema,table,numFiles,zorder,zorderby \
-                    from \
-                            {table_file_stats} \
-                    where   \
-                            (catalog = '{catalog}' OR '{catalog}' = '*') \
-                            and \
-                            avgFileSizeMb < 10 \
-                            and \
-                            numFiles > 1 \
-                    order by \
-                            avgFileSizeMb \
-                    ")
-          )
+# def optimizeTables():
+#     df = ( 
+#           spark.sql(f" \
+#                     select \
+#                             catalog,schema,table,numFiles,zorder,zorderby \
+#                     from \
+#                             {table_file_stats} \
+#                     where   \
+#                             (catalog = '{catalog}' OR '{catalog}' = '*') \
+#                             and \
+#                             avgFileSizeMb < 10 \
+#                             and \
+#                             numFiles > 1 \
+#                     order by \
+#                             avgFileSizeMb \
+#                     ")
+#           )
           
-    tableList = [data for data in df.collect()]
+#     tableList = [data for data in df.collect()]
 
-    for table in tableList:
+#     for table in tableList:
 
-        fullname = f"{table['catalog']}.{table['schema']}.{table['table']}"
+#         fullname = f"{table['catalog']}.{table['schema']}.{table['table']}"
 
-        try:
-            zorderClause = ""
-            if table['zorder'] == "Y":
-                zorderFields = table['zorderby']
-                zorderClause = f" ZORDER BY {zorderFields}"
+#         try:
+#             zorderClause = ""
+#             if table['zorder'] == "Y":
+#                 zorderFields = table['zorderby']
+#                 zorderClause = f" ZORDER BY {zorderFields}"
 
-            print(f"Running Optimize on {fullname} {zorderClause}...")
+#             print(f"Running Optimize on {fullname} {zorderClause}...")
 
-            spark.sql(f"OPTIMIZE {fullname} {zorderClause}")
+#             spark.sql(f"OPTIMIZE {fullname} {zorderClause}")
 
-        except Exception as e:  
-            output = f"{e}"  
-            print(f"    Error on optimizing {fullname} : {e}")
+#         except Exception as e:  
+#             output = f"{e}"  
+#             print(f"    Error on optimizing {fullname} : {e}")
     
 
 # COMMAND ----------
@@ -357,14 +439,6 @@ def writeDataframe(pcatalog,ptablesStats):
 
         df = spark.createDataFrame(tablesStats,schema).withColumn("timestamp", current_timestamp())
 
-        if verbose:
-            print(f"    Deleting old information for {pcatalog}")
-
-        spark.sql(f"DELETE FROM {table_file_stats} WHERE catalog = '{pcatalog}'")
-        spark.sql(f"DELETE FROM {table_file_stats_hist} WHERE batchId = '{batch_id}' and catalog = '{pcatalog}'")
-
-        if verbose:
-            print(f"    Saving data for {pcatalog}")
             
         df.write.mode("append").saveAsTable(table_file_stats)
         df.write.mode("append").saveAsTable(table_file_stats_hist)
@@ -395,16 +469,16 @@ if catalog == "*":  ## all catalogs will be processed
         if verbose:
             print(f"Analyzing catalog {catalog_to_analyze['catalog_name']}")
         tablesStats = processCatalog(catalog_to_analyze['catalog_name'])
-        writeDataframe(catalog_to_analyze['catalog_name'],tablesStats)
+        # writeDataframe(catalog_to_analyze['catalog_name'],tablesStats)
 
 else:
     tablesStats = processCatalog(catalog)
-    writeDataframe(catalog,tablesStats)
+    # writeDataframe(catalog,tablesStats)
 
-if AutoFixOptimize == "Y":
-    optimizeTables()
+# if AutoFixOptimize == "Y":
+#     optimizeTables()
 
-autoClean()
+# autoClean()
 
 # COMMAND ----------
 
@@ -414,6 +488,11 @@ autoClean()
 
 # with ThreadPoolExecutor(max_workers = default_parallelism) as executor:
 #     executor.map(create_uc_tables, edsx)
+
+# COMMAND ----------
+
+# for i in tableList:
+#     processTable(i)
 
 # COMMAND ----------
 
