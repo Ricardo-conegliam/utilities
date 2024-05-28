@@ -46,7 +46,7 @@ autoFixVacuum = dbutils.widgets.get("autoFixVacuum")
 checkZorder = dbutils.widgets.get("checkZorder")
 
 
-# table_file_stats = "main.default.tablefilestats"
+table_file_stats = "main.default.tablefilestats"
 table_file_stats_hist = "main.default.tablefilestats_hist"
 
 verbose = True
@@ -70,23 +70,23 @@ main_list = []
 # COMMAND ----------
 
 # DBTITLE 1,Creating the tables if they don't exist
-# spark.sql(f"\
-# CREATE TABLE IF NOT EXISTS {table_file_stats} ( \
-#   batchId STRING,\
-#   catalog STRING, \
-#   schema STRING, \
-#   table STRING, \
-#   partitionColumns STRING, \
-#   numFiles BIGINT, \
-#   sizeMb DOUBLE, \
-#   avgFileSizeMb DOUBLE, \
-#   timestamp TIMESTAMP, \
-#   vacuum STRING , \
-#   zorder STRING , \
-#   zorderby STRING , \
-#   last_optimize timestamp, \
-#   lastModified timestamp \
-# )")
+spark.sql(f"\
+CREATE TABLE IF NOT EXISTS {table_file_stats} ( \
+  batchId STRING,\
+  catalog STRING, \
+  schema STRING, \
+  table STRING, \
+  partitionColumns STRING, \
+  numFiles BIGINT, \
+  sizeMb DOUBLE, \
+  avgFileSizeMb DOUBLE, \
+  timestamp TIMESTAMP, \
+  vacuum STRING , \
+  zorder STRING , \
+  zorderby STRING , \
+  last_optimize timestamp, \
+  lastModified timestamp \
+)")
 
 spark.sql(f"\
   CREATE TABLE IF NOT EXISTS {table_file_stats_hist} ( \
@@ -124,16 +124,6 @@ schema = StructType(
         StructField("lastModified", TimestampType(), True)
     ]
 )
-
-
-# COMMAND ----------
-
-# if verbose:
-#     print(f"    Deleting old information for {catalog}")
-
-# spark.sql(f"DELETE FROM {table_file_stats} WHERE catalog = '{catalog}'")
-# spark.sql(f"DELETE FROM {table_file_stats_hist} WHERE batchId = '{batch_id}' and catalog = '{catalog}'")
-
 
 
 # COMMAND ----------
@@ -315,6 +305,7 @@ def processTable(table):
             
             # dfDetail_write.show()
 
+            dfDetail_write.write.mode("append").option("mergeSchema",True).format("delta").saveAsTable(table_file_stats) 
             dfDetail_write.write.mode("append").option("mergeSchema",True).format("delta").saveAsTable(table_file_stats_hist) 
 
             # # spark.sql(f"INSERT INTO {table_file_stats} ()")
@@ -338,7 +329,7 @@ def optimize_table ( fullname,zorderby):
 
     try:
 
-        print(f"Running Optimize on {fullname} {zorderby}...")
+        print(f"{fullname} {zorderby} - Running Optimize ...")
 
         spark.sql(f"OPTIMIZE {fullname} {zorderby}")
 
@@ -352,7 +343,7 @@ def vacuum_table ( fullname):
 
     try:
 
-        print(f"Running Vacuum on {fullname} ...")
+        print(f"{fullname} - Running Vacuum ...")
 
         spark.sql(f"VACUUM {fullname}")
 
@@ -466,12 +457,24 @@ if catalog == "*":  ## all catalogs will be processed
     )
 
     for catalog_to_analyze in catalogs:
+
+        if verbose:
+            print(f"Deleting some metadata for {catalog_to_analyze['catalog_name']}")
+        
+        spark.sql(f"DELETE FROM {table_file_stats} WHERE catalog = '{catalog_to_analyze['catalog_name']}'")
+        spark.sql(f"DELETE FROM {table_file_stats_hist} WHERE batchId = '{batch_id}' and catalog = '{catalog_to_analyze['catalog_name']}'")
+
         if verbose:
             print(f"Analyzing catalog {catalog_to_analyze['catalog_name']}")
+            
         tablesStats = processCatalog(catalog_to_analyze['catalog_name'])
         # writeDataframe(catalog_to_analyze['catalog_name'],tablesStats)
 
 else:
+
+    spark.sql(f"DELETE FROM {table_file_stats} WHERE catalog = '{catalog}'")
+    spark.sql(f"DELETE FROM {table_file_stats_hist} WHERE batchId = '{batch_id}' and catalog = '{catalog}'")
+    
     tablesStats = processCatalog(catalog)
     # writeDataframe(catalog,tablesStats)
 
