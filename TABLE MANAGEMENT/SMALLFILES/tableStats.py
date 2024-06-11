@@ -1,5 +1,7 @@
 # Databricks notebook source
 # MAGIC %md
+# MAGIC ## Use Predictive Optimization instead of this script - PO still don't do zorder, but its on the way.
+# MAGIC
 # MAGIC ## Objective : Collect small file stats from given catalog (or all)
 # MAGIC - To process all the catalogs, just use "*" as parameter
 # MAGIC - You can run it daily to get the health evolution
@@ -323,10 +325,6 @@ def processTable(table):
 
             if verbose: print(f"{fullname} - Writing metadata...")
 
-            # " ".join(str(x) for x in xs)
-
-            dfDetail.show()
-
             dfDetail_write = (
                 dfDetail
                 .withColumn( "partitionColumns", concat_ws(",",col("partitionColumns")) )
@@ -337,14 +335,6 @@ def processTable(table):
             dfDetail_write.write.mode("append").option("mergeSchema",True).format("delta").saveAsTable(table_file_stats) 
             dfDetail_write.write.mode("append").option("mergeSchema",True).format("delta").saveAsTable(table_file_stats_hist) 
 
-            # # spark.sql(f"INSERT INTO {table_file_stats} ()")
-
-            # main_list
-            # main_list.append(dfDetail.collect()[0])
-
-        # removed since it is not working with serverless
-        # if verifyVacuum == "Y" or checkZorder == "Y" :
-        #     dfHistory.unpersist()
 
     except Exception as e:
         output = f"{e}"
@@ -447,10 +437,6 @@ else:
     
     tablesStats = processCatalog(catalog)
 
-
-# COMMAND ----------
-
-dbutils.fs.ls(spark.sql(f"describe detail {table_file_stats}").first()["location"])
 
 # COMMAND ----------
 
