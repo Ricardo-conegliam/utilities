@@ -161,12 +161,12 @@ def getTableListFromCatalog(catalog):
 # COMMAND ----------
 
 # DBTITLE 1,Listing schemas
-list = getTableListFromCatalog("main")
+# list = getTableListFromCatalog("main")
 
-schemas = [ ]
-for row in list:
-    if row['table_schema'] not in schemas:
-        schemas.append(row['table_schema'])
+# schemas = [ ]
+# for row in list:
+#     if row['table_schema'] not in schemas:
+#         schemas.append(row['table_schema'])
 
 # COMMAND ----------
 
