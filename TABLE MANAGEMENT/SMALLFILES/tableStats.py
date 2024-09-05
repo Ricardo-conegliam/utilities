@@ -420,13 +420,14 @@ if catalog == "*":  ## all catalogs will be processed
         .collect()
     )
 
-    for catalog_to_analyze in catalogs:
+    str_catalogs = (', '.join([f"'{catalog['catalog_name']}'" for catalog in catalogs]))
 
-        if verbose:
-            print(f"Deleting some metadata for {catalog_to_analyze['catalog_name']}")
-        
-        spark.sql(f"DELETE FROM {table_file_stats} WHERE catalog = '{catalog_to_analyze['catalog_name']}'")
-        spark.sql(f"DELETE FROM {table_file_stats_hist} WHERE batchId = '{batch_id}' and catalog = '{catalog_to_analyze['catalog_name']}'")
+    if verbose:
+        print(f"Deleting some metadata for {catalog_to_analyze['catalog_name']}")
+    spark.sql(f"DELETE FROM {table_file_stats} WHERE catalog in ({str_catalogs})")
+    spark.sql(f"DELETE FROM {table_file_stats_hist} WHERE batchId = '{batch_id}' and catalog ({str_catalogs})")
+
+    for catalog_to_analyze in catalogs:
 
         if verbose:
             print(f"Analyzing catalog {catalog_to_analyze['catalog_name']}")
