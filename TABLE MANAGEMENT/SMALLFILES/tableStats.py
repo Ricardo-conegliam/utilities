@@ -67,10 +67,13 @@ batch_id = now.strftime("%Y%m%d")
 
 # main_list = []
 
-
 df_system_table = (
         spark.table("system.information_schema.tables")
         .select("table_catalog", "table_schema", "table_name","last_altered")
+        .where("table_catalog <> 'information_schema'")
+        .where("data_source_format = 'DELTA'")
+        .where("table_catalog <> '__databricks_internal'")
+        .orderBy("table_schema")
 ).persist()
 
 
@@ -147,11 +150,7 @@ def getTableListFromCatalog(catalog):
     df = (
         df_system_table
         .where(f'table_catalog = "{catalog}" ')
-        .where("table_catalog <> 'information_schema'")
-        .where("data_source_format = 'DELTA'")
-        .where("table_catalog <> '__databricks_internal'")
         .where(f"last_altered > now() - interval {days_since_last_alt} days")
-        .orderBy("table_schema")
     )
 
     return_list = [
