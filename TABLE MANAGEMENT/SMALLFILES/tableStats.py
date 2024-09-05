@@ -160,6 +160,7 @@ def getTableListFromCatalog(catalog):
 
 # COMMAND ----------
 
+# DBTITLE 1,Listing schemas
 list = getTableListFromCatalog("main")
 
 schemas = [ ]
@@ -169,6 +170,7 @@ for row in list:
 
 # COMMAND ----------
 
+# DBTITLE 1,Getting tables info
 def getTableInfo(ptable):
 
     if verbose:  
@@ -228,6 +230,7 @@ def processCatalog(catalog):
 
 # COMMAND ----------
 
+# DBTITLE 1,Main function
 def processTable(table):
 
     fullname = f"{table['table_catalog']}.{table['table_schema']}.{table['table_name']}"
@@ -348,6 +351,7 @@ def processTable(table):
 
 # COMMAND ----------
 
+# DBTITLE 1,Optimize Function
 def optimize_table ( fullname, zorderby):
 
     try:
@@ -366,6 +370,7 @@ def optimize_table ( fullname, zorderby):
 
 # COMMAND ----------
 
+# DBTITLE 1,Vacuum function
 def vacuum_table ( fullname):
 
     try:
