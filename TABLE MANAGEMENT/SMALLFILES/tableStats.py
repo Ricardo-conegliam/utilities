@@ -430,7 +430,7 @@ if catalog == "*":  ## all catalogs will be processed
     if verbose:
         print("Deleting some metadata")
     spark.sql(f"DELETE FROM {table_file_stats} WHERE catalog in ({str_catalogs})")
-    spark.sql(f"DELETE FROM {table_file_stats_hist} WHERE batchId = '{batch_id}' and catalog ({str_catalogs})")
+    spark.sql(f"DELETE FROM {table_file_stats_hist} WHERE batchId = '{batch_id}' and catalog in ({str_catalogs})")
 
     for catalog_to_analyze in catalogs:
 
