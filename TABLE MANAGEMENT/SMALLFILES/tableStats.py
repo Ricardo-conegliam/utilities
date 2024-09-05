@@ -68,6 +68,11 @@ batch_id = now.strftime("%Y%m%d")
 # main_list = []
 
 
+df_system_table = (
+        spark.table("system.information_schema.tables")
+        .select("table_catalog", "table_schema", "table_name","last_altered")
+).persist()
+
 
 # COMMAND ----------
 
@@ -140,8 +145,7 @@ def getTableListFromCatalog(catalog):
         print(f"Reading catalog {catalog}")
               
     df = (
-        spark.table("system.information_schema.tables")
-        .select("table_catalog", "table_schema", "table_name","last_altered")
+        df_system_table
         .where(f'table_catalog = "{catalog}" ')
         .where("table_catalog <> 'information_schema'")
         .where("data_source_format = 'DELTA'")
