@@ -238,15 +238,15 @@ def processTable(table):
     try:
 
         dfDetail = getTableInfo (table)
+        dfDetail.persist()
 
         if verifyVacuum == "Y" or checkZorder == "Y" :
 
             if verbose: print(f"{fullname} - Getting history information...")
-            dfHistory = spark.sql(f"desc history {fullname}")   # .cache(). incompatible with serverless
+            dfHistory = spark.sql(f"desc history {fullname}").persist() # incompatible with serverless
             historyCount = dfHistory.count()
 
             if verbose: print(f"{fullname} - Versions found : {historyCount}")
-
 
         if dfDetail.count() > 0:  ## there is at least one information regarding the table by describe detail
             
@@ -267,7 +267,7 @@ def processTable(table):
                             .where(f"timestamp < '{v_last_altered}' ")
                             .where("operation = 'VACUUM END'")
                             .where("operationParameters.status='COMPLETED'")
-                            )
+                            ).persist()
 
 
                 vacuum = "N"
@@ -334,6 +334,10 @@ def processTable(table):
 
             dfDetail_write.write.mode("append").option("mergeSchema",True).format("delta").saveAsTable(table_file_stats) 
             dfDetail_write.write.mode("append").option("mergeSchema",True).format("delta").saveAsTable(table_file_stats_hist) 
+            
+            dfHistory.unpersist()
+            dfDetail.unpersist()
+            dfVacuum.unpersist()
 
 
     except Exception as e:
@@ -437,6 +441,20 @@ else:
     
     tablesStats = processCatalog(catalog)
 
+
+# COMMAND ----------
+
+dbutils.fs.ls("abfss://fe-shared-ssa-latam-unity-catalog@fesharedssalatamstorage1.dfs.core.windows.net/unity_catalog/c1d760bc-fa70-4b42-842b-b826e56c119a/tables/d26c64b8-0178-4681-8c8c-23086b6f7922")
+
+# COMMAND ----------
+
+# MAGIC %sql
+# MAGIC alter table main.schema01.struct_fields_table set tblproperties ("delta.dataSkippingNumIndexedCols"=2)
+
+# COMMAND ----------
+
+# MAGIC %sql
+# MAGIC describe detail main.schema01.struct_fields_table
 
 # COMMAND ----------
 
