@@ -25,6 +25,7 @@ from pyspark.sql.functions import col, lit, round, current_timestamp, coalesce, 
 from pyspark.sql.types import StructType, StructField, StringType, TimestampType, DateType, ArrayType, BooleanType, DoubleType, LongType
 from datetime import date, timedelta
 import concurrent.futures
+from pyspark.storagelevel import StorageLevel
 
 
 
@@ -74,7 +75,7 @@ df_system_table = (
         .where("data_source_format = 'DELTA'")
         .where("table_catalog <> '__databricks_internal'")
         .orderBy("table_schema")
-).persist()
+)
 
 
 # COMMAND ----------
