@@ -245,12 +245,12 @@ def processTable(table):
     try:
 
         dfDetail = getTableInfo (table)
-        dfDetail.persist()
+        dfDetail.persist(StorageLevel.MEMORY_ONLY)
 
         if verifyVacuum == "Y" or checkZorder == "Y" :
 
             if verbose: print(f"{fullname} - Getting history information...")
-            dfHistory = spark.sql(f"desc history {fullname}").persist() # incompatible with serverless
+            dfHistory = spark.sql(f"desc history {fullname}").persist(StorageLevel.MEMORY_ONLY) # incompatible with serverless
             historyCount = dfHistory.count()
 
             if verbose: print(f"{fullname} - Versions found : {historyCount}")
@@ -274,7 +274,7 @@ def processTable(table):
                             .where(f"timestamp < '{v_last_altered}' ")
                             .where("operation = 'VACUUM END'")
                             .where("operationParameters.status='COMPLETED'")
-                            ).persist()
+                            ).persist(StorageLevel.MEMORY_ONLY)
 
 
                 vacuum = "N"
